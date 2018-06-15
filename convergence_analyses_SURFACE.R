@@ -125,56 +125,6 @@ rownames(meanPC) <- meanPC[,1]
 meanPC <- meanPC[,-1]
 meanPC
 
-#### ------- ERROR TESTING
-#PCA FIRST THEN MEANS -> IS THIS BETTER?
-## try to reduce number of variables
-leafdata.stripped <- leafphylo.cont[,c(1,2,3,6,11,12)]
-head(leafdata.stripped)
-names(leafdata.stripped)
-
-vb.pca <- prcomp(leafphylo.cont[, 2:12],
-                 center = TRUE,
-                 scale. = TRUE)
-pcastats <- print(vb.pca)
-summary(vb.pca)
-
-vb.pca.stripped <- prcomp(leafdata.stripped[, 2:6],
-                          center = TRUE,
-                          scale. = TRUE)
-
-print(vb.pca.stripped)
-summary(vb.pca.stripped)
-
-vib <- data.frame(vb.pca$x,Species=leafphylo.cont$Species)
-vib.stripped <- data.frame(vb.pca.stripped$x,Species=leafdata.stripped$Species)
-
-## take PC means for each species
-meanPCfull <- ddply(vib, "Species", summarise, PC1=mean(PC1), PC2=mean(PC2))
-meanPCfull
-
-meanPCstripped <- ddply(vib.stripped, "Species", summarise, PC1=mean(PC1), PC2=mean(PC2), PC3=mean(PC3))
-meanPCstripped
-
-rownames(meanPCfull) <- meanPCfull[,1]
-meanPCfull <- meanPCfull[,-1]
-meanPCfull
-
-rownames(meanPCstripped) <- meanPCstripped[,1]
-meanPCstripped <- meanPCstripped[,-1]
-meanPCstripped
-
-mytree<-nameNodes(mytree)
-# plot(tree)
-olist<-convertTreeData(mytree,meanPCstripped) ## CHECK THAT THE DATA INPUT HERE IS USED THROUGHOUT!
-otree<-olist[[1]]; odata<-olist[[2]]
-
-fwd<-surfaceForward(otree, odata, aic_threshold = 85, exclude = 0, verbose = FALSE,plotaic = FALSE)
-
-
-
-
-############# ______________
-
 
 ##### EXECUTE SURFACE
 # prepare tree and data for SURFACE
