@@ -1,5 +1,6 @@
 ##### Tests for convergence using SURFACE: exectutes the SURFACE algorithm (Mahler et al 2013) using Oreinotinus morphological leaf data and summary trees. Input parameters include:
     # treetype: must = "mcc" or "map" to indicate the summary tree used
+    # datatype: must = "morpho" or "PC" to indicate the data to feed to SURFACE
     # PCtype: must = "full" or "stripped" to indicate variable set used to generate PC values which are fed to SURFACE
     # numPCaxes: integer value between 2 and 4 indicating the number of PC axes to retain and feed to SURFACE
     # fwdaicthresh: numerical value, with smaller numbers indicating more stringent AIC (Akaike Information Criterion) requirements for the SURFACE algorithm's forward phase
@@ -9,6 +10,7 @@
 
 ##### VARIABLES
 treetype <- "mcc"
+datatype <- "PC"
 PCtype <- "stripped"
 numPCaxes <- 3
 fwdaicthresh <- 85
@@ -37,7 +39,7 @@ library(igraph)
 setwd("C:/Users/Jordan/Documents/Yale/Viburnum/R")
 
 ##### import dataset
-leafdata.csv <- read.csv("oreinotinus_leaf_data_6-5-2018.csv", header = TRUE)
+leafdata.csv <- read.csv("oreinotinus_leaf_data_6-18-2018.csv", header = TRUE)
 names(leafdata.csv)
 
 ##### take continuous variables as subset
@@ -48,8 +50,8 @@ names(leafdata.cont)
 ##### transform for skewness with log
 log(leafdata.cont[,c(2:10)])->leafdata.cont[,c(2:10)]
 # eccentricity left skewed so use alternate transformation:
-hist(leafdata.cont$Eccentricity)
-hist(log(2-leafdata.cont$Eccentricity))
+#hist(leafdata.cont$Eccentricity)
+#hist(log(2-leafdata.cont$Eccentricity))
 log(2-leafdata.cont$Eccentricity) ->leafdata.cont$Eccentricity
 
 ##### read viburnum oreinotinus trees from nex files
@@ -76,9 +78,29 @@ leafdata.cont[leafdata.cont$Species %in% c(tiplabels), ]->leafphylo.cont
 head(leafphylo.cont)
 
 
+##### prepare morphological data as input, if datatype = "morpho"
+if(datatype == "morpho") {
+  ## take means for each species
+  mdat <- ddply(leafphylo.cont, "Species", summarise, length=mean(Blade.length), width=mean(Blade.width), area=mean(Blade.area), perimeter=mean(Blade.perimeter), cog=mean(Center.of.gravity), teeth=mean(Num.teeth.adj), base.angle=mean(Angle.of.base), tip.angle=mean(Angle.of.tip), AR=mean(Aspect.ratio), eccentricity=mean(Eccentricity), hairiness=mean(Hairiness), region_exp=mean(Region.code.exp), region_sim=mean(Region.code.simple))
+  mdat
+  
+  ## convert to matrix
+  #meandata <- data.matrix(mdat, rownames.force = TRUE)
+  meandata <- as.matrix(mdat[,-1])
+  rownames(meandata) <- mdat[,1]
+  meandata
+  
+  xbar <- as.data.frame(meandata[,c(-12,-13)])
+  
+  ## take subsets of trait mean data for SURFACE (area, teeth, aspect ratio, hair)
+  xbar_subset <- xbar[,c(3,6,9,11)]
+  xbar_subset
+} ### end if for datatype = morpho
+
+
 ##### PCA - use either full set of continuous variables (11 metrics) or stripped subset of continuous variables (5 metrics) depending on input variable
 if(PCtype == "stripped") {
-  leafdata.PCfeed <- leafphylo.cont[,c(1,2,3,6,11,12)]
+  leafdata.PCfeed <- leafphylo.cont[,c(1,4,6,10,12)]
 } else if(PCtype == "full") {
   leafdata.PCfeed <- leafphylo.cont
 } else {
@@ -90,7 +112,7 @@ names(leafdata.PCfeed)
 
 # run pc using the variable set selected
 if(PCtype == "stripped") {
-  vb.pca <- prcomp(leafdata.PCfeed[, 2:6],
+  vb.pca <- prcomp(leafdata.PCfeed[, 2:5],
                    center = TRUE,
                    scale. = TRUE)} else if(PCtype == "full") {
   vb.pca <- prcomp(leafdata.PCfeed[, 2:12],
@@ -125,11 +147,19 @@ rownames(meanPC) <- meanPC[,1]
 meanPC <- meanPC[,-1]
 meanPC
 
-
 ##### EXECUTE SURFACE
-# prepare tree and data for SURFACE
+# prepare tree for SURFACE
 mytree<-nameNodes(mytree)
-olist<-convertTreeData(mytree,meanPC)
+
+# prepare data for SURFACE, using either PC data or morpho data per input variable 'datatype'
+if(datatype == "PC") {
+  olist<-convertTreeData(mytree,meanPC)
+} else if(datatype == "morpho"){
+  olist<-convertTreeData(mytree,xbar_subset)
+} else {
+  print("Error! datatype must = 'PC' or 'morpho'")
+}
+
 otree<-olist[[1]]; odata<-olist[[2]]
 
 ### run surface forward phase
@@ -179,11 +209,41 @@ bsum$n_regimes
 surfaceTreePlot(mytree, bwd[[kk]], labelshifts = F, convcol = T, cex=0.8)
 
 # plots for the SURFACE PC morphospace (adjust 'whattraits' according to # retained PC axes)
-surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,2), cex = 3,cex.opt = 13, cex.axis = 1.2, cex.lab = 1.5)
-surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,3), cex = 3,cex.opt = 13)
-surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,4), cex = 3,cex.opt = 13)
-surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(3,2), cex = 3,cex.opt = 13)
+if(datatype == "PC"){
+  surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,2), cex = 3,cex.opt = 13, cex.axis = 1.2, cex.lab = 1.5)
+  surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,3), cex = 3,cex.opt = 13)
+  #surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,4), cex = 3,cex.opt = 13)
+  surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(3,2), cex = 3,cex.opt = 13)
+} else if(datatype == "morpho"){
+  surfaceTraitPlot(xbar_subset, bwd[[kk]], whattraits = c(1,2), cex = 3,cex.opt = 13, cex.axis = 1.2, cex.lab = 1.5)
+  surfaceTraitPlot(xbar_subset, bwd[[kk]], whattraits = c(1,3), cex = 3,cex.opt = 13)
+  surfaceTraitPlot(xbar_subset, bwd[[kk]], whattraits = c(1,4), cex = 3,cex.opt = 13)
+  surfaceTraitPlot(xbar_subset, bwd[[kk]], whattraits = c(2,3), cex = 3,cex.opt = 13)
+}
 
+
+setwd("C:/Users/Jordan/Documents/Yale/Viburnum/Figures/SURFACE") ## change path as needed
+
+pdf("SURFACE_xbar_subset-area-aspect_aic-25_6-18-2018.pdf", width = 10, height = 10) ## change name as needed!!
+surfaceTreePlot(mytree, bwd[[kk]], labelshifts = F, convcol = T, cex=0.8)
+if(datatype == "PC"){
+  surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,2), cex = 3,cex.opt = 13, cex.axis = 1.2, cex.lab = 1.5)
+  surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,3), cex = 3,cex.opt = 13)
+  #surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,4), cex = 3,cex.opt = 13)
+  surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(3,2), cex = 3,cex.opt = 13)
+} else if(datatype == "morpho"){
+  surfaceTraitPlot(xbar_subset, bwd[[kk]], whattraits = c(1,2), cex = 3,cex.opt = 13, cex.axis = 1.2, cex.lab = 1.5)
+  surfaceTraitPlot(xbar_subset, bwd[[kk]], whattraits = c(1,3), cex = 3,cex.opt = 13)
+  surfaceTraitPlot(xbar_subset, bwd[[kk]], whattraits = c(1,4), cex = 3,cex.opt = 13)
+  surfaceTraitPlot(xbar_subset, bwd[[kk]], whattraits = c(2,3), cex = 3,cex.opt = 13)
+}
+dev.off()
+
+# pdf("SURFACE_PCstripped-area-aspect_PCspace.pdf", width = 10, height = 10)
+# surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,2), cex = 3,cex.opt = 13)
+# surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(1,3), cex = 3,cex.opt = 13)
+# surfaceTraitPlot(meanPC, bwd[[kk]], whattraits = c(2,3), cex = 3,cex.opt = 13)
+# dev.off()
 
 #Clean up
 rm(list = ls())
